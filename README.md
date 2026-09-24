@@ -9,7 +9,7 @@ covers getting the app running.
 - **Docker Desktop** — [download here](https://www.docker.com/products/docker-desktop)
 - **Node.js** v18 or higher — [download here](https://nodejs.org/) (only needed
   once you start changing the services)
-- Ports `3000`, `3001`, `3002` and `8080` free
+- Ports `3000`, `3001`, `3002`, `4317`, `4318` and `8080` free
 
 ## Get the code
 
@@ -34,11 +34,16 @@ git remote -v
 
 ```bash
 cd pizza-app
+cp .env.template .env   # then fill in DASH0_AUTH_TOKEN
 docker compose up
 ```
 
-The first build takes a few minutes. When all four containers are up, open
+The first build takes a few minutes. When all five containers are up, open
 <http://localhost:8080> and order a pizza.
+
+The app is instrumented with OpenTelemetry and ships its telemetry to Dash0
+through a Collector that runs alongside it — see
+[pizza-app/README.md](pizza-app/README.md#telemetry).
 
 Stop with `Ctrl+C`, or:
 
@@ -56,6 +61,7 @@ docker compose down --rmi all  # and images
 | Order Service | 3000 | Takes the order, calls the other two |
 | Kitchen Service | 3001 | Checks availability, cooks |
 | Delivery Service | 3002 | Assigns a driver |
+| OTel Collector | 4317 / 4318 | Receives telemetry from the four above and forwards it to Dash0 |
 
 Logs from all four are interleaved in the terminal you ran `docker compose up`
 in. For one service on its own:
