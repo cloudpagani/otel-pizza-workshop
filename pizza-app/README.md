@@ -76,8 +76,10 @@ Configuration lives in two places:
 | `docker-compose.yml` | `OTEL_*` environment variables per service |
 | `otelcol.yaml` | Collector receivers, processors and the Dash0 exporter |
 
-`/health` spans are dropped in the Collector so the container healthchecks don't
-dominate the traces.
+The Collector drops `/health` spans and Express middleware spans, so the
+container healthchecks and framework plumbing don't bury the order traces. Both
+rules live in the `filter/drop_noise` processor in `otelcol.yaml` — delete them
+if you want the raw firehose.
 
 ### Checking it arrived
 
