@@ -28,6 +28,7 @@ A pizza ordering system built from three microservices and a web frontend.
 ## Running the App
 
 ```bash
+cp .env.template .env   # then fill in DASH0_AUTH_TOKEN
 docker compose up
 ```
 
@@ -38,6 +39,57 @@ To stop it:
 ```bash
 docker compose down
 ```
+
+## Telemetry
+
+The stack sends traces, metrics and logs to Dash0. Nothing in the services
+themselves calls OpenTelemetry: the SDK is loaded before the application code by
+`NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register`, set
+per service in `docker-compose.yml`.
+
+```
+Browser (8080) ──┐
+Order (3000) ────┤
+Kitchen (3001) ──┼──▶ otel-collector (4317/4318) ──▶ Dash0 OTLP/gRPC ingress
+Delivery (3002) ─┘
+```
+
+What that gives you, per pizza order:
+
+- One trace covering the browser page view, `POST /order`, both kitchen calls and
+  the delivery call — `traceparent` headers are propagated automatically by the
+  HTTP client instrumentation.
+- Express route and middleware spans, so the time spent inside each handler is
+  visible.
+- The existing pino logs, forwarded as OpenTelemetry log records with
+  `trace_id` / `span_id` attached, so logs and traces line up in Dash0.
+- Node.js runtime and HTTP metrics.
+
+The Collector holds the credentials (`pizza-app/.env`, gitignored) and is the
+only component that talks to Dash0. Browser telemetry goes to the Collector on
+port 4318 as well, so no Dash0 token is embedded in the page.
+
+Configuration lives in two places:
+
+| File | Holds |
+|---|---|
+| `docker-compose.yml` | `OTEL_*` environment variables per service |
+| `otelcol.yaml` | Collector receivers, processors and the Dash0 exporter |
+
+The Collector drops `/health` spans and Express middleware spans, so the
+container healthchecks and framework plumbing don't bury the order traces. Both
+rules live in the `filter/drop_noise` processor in `otelcol.yaml` — delete them
+if you want the raw firehose.
+
+### Checking it arrived
+
+```bash
+docker compose logs -f otel-collector
+```
+
+A working export is quiet. `Exporting failed` with `401` means
+`DASH0_AUTH_TOKEN` is wrong; `context deadline exceeded` means
+`DASH0_OTLP_GRPC_ENDPOINT` is wrong or unreachable.
 
 ## Watching What Happens
 
